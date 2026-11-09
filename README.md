@@ -4,7 +4,7 @@
 
 ![AtomCode Harness 界面](resource/main.png)
 
-![main](D:\www\atomcode-harness\resource\main.png)
+
 
 ## 关于 AtomCode
 
@@ -18,6 +18,8 @@
 
 **可用模型**：`qwen3.8-27b` | `glm5.3-flash`
 
+
+
 ## 功能特性
 
 - **多会话管理**：普通会话 / 工作区会话分组展示，工作区按所选目录分组、可折叠，会话支持重命名、删除、运行状态徽标（运行中 / 已完成 / 失败）
@@ -29,10 +31,14 @@
 - **额度面板**：通过 AtomCode daemon 读取 CodingPlan 额度、5h 窗口、上下文占用
 - **代码分支**：输入栏显示当前会话工作目录的 git 分支（非 git 目录自动隐藏）
 
+
+
 ## 环境要求
 
 - Node.js（建议 ≥ 18；兼容 16，daemon 探测使用内置 `http` 模块）
 - 本机已安装 [AtomCode](https://atomcode.atomgit.com/?lang=zh) CLI 并完成登录（`atomcode login`）
+
+
 
 ## 快速开始
 
@@ -41,6 +47,8 @@ npm start        # 即 node server.js，无需安装依赖
 ```
 
 启动后浏览器访问 `http://localhost:3000`（以控制台输出为准）。
+
+
 
 ## 配置
 
@@ -57,6 +65,8 @@ npm start        # 即 node server.js，无需安装依赖
 - `ATOMCODE_DAEMON_PORT`：自定义额度 daemon 端口（默认 13458，备选 13459）
 - `ATOMCODE_NO_UPDATE`：启动 CLI 时禁用自动更新（默认已开启）
 
+
+
 ## 项目结构
 
 ```
@@ -66,6 +76,8 @@ lib/store.js       会话与消息的 JSON 文件存储（data/）
 public/            前端单页（原生 JS，无构建步骤）
 data/              运行时生成的会话数据（不入库）
 ```
+
+
 
 ## 注意事项
 
