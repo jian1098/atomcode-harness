@@ -1,0 +1,7 @@
+node_modules/
+data/
+.atomcode/
+.atomcode-harness/
+.workbuddy-ai/
+*.log
+.DS_Store
