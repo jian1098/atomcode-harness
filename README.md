@@ -2,6 +2,10 @@
 
 一个本地 Web Harness，通过 headless 流式模式驱动 [AtomCode CLI](https://atomcode.atomgit.com/?lang=zh)，在浏览器中完成与 Agent 的多会话对话。
 
+![AtomCode Harness 界面](resource/main.png)
+
+![main](D:\www\atomcode-harness\resource\main.png)
+
 ## 关于 AtomCode
 
 目前官方**没有提供桌面版客户端**，只有 CLI。使用本项目前需要先安装 AtomCode：
