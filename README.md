@@ -1,6 +1,18 @@
 # AtomCode Harness
 
-一个本地 Web Harness，通过 headless 流式模式驱动 [AtomCode CLI](https://atomcode.dev)，在浏览器中完成与 Agent 的多会话对话。
+一个本地 Web Harness，通过 headless 流式模式驱动 [AtomCode CLI](https://atomcode.atomgit.com/?lang=zh)，在浏览器中完成与 Agent 的多会话对话。
+
+## 关于 AtomCode
+
+目前官方**没有提供桌面版客户端**，只有 CLI。使用本项目前需要先安装 AtomCode：
+
+- 官网：<https://atomcode.atomgit.com/?lang=zh>
+
+**CodingPlan 免费权益活动**：当前可免费领取 7 天 CodingPlan 权益，系统自动发放当前可获得的最高权益；调用额度按 5 小时滚动窗口计量；7 天到期后可以继续领取，没有次数限制。
+
+- 活动地址：<https://atomgit.com/?tn=atomcode-coding-plan>
+
+**可用模型**：`qwen3.8-27b` | `glm5.3-flash`
 
 ## 功能特性
 
@@ -16,7 +28,7 @@
 ## 环境要求
 
 - Node.js（建议 ≥ 18；兼容 16，daemon 探测使用内置 `http` 模块）
-- 本机已安装 AtomCode CLI 并完成登录（`atomcode login`）
+- 本机已安装 [AtomCode](https://atomcode.atomgit.com/?lang=zh) CLI 并完成登录（`atomcode login`）
 
 ## 快速开始
 
