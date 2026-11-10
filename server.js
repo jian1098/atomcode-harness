@@ -8,6 +8,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execFile } = require('child_process');
 const cli = require('./lib/cli');
 const store = require('./lib/store');
 
@@ -436,6 +437,29 @@ const server = http.createServer(async (req, res) => {
       })).trim();
       } catch (_) { /* git missing or detached HEAD */ }
       return json(res, 200, { branch });
+    }
+
+    // Opens the Explorer-style native folder picker (IFileOpenDialog with
+    // FOS_PICKFOLDERS) via lib/pick-dir.ps1 and returns the chosen directory.
+    // Blocks until the user picks or cancels.
+    if (method === 'POST' && pathname === '/api/pick-dir') {
+      if (process.platform !== 'win32') return json(res, 400, { error: '仅支持 Windows 系统' });
+      const body = await readBody(req);
+      const script = path.join(__dirname, 'lib', 'pick-dir.ps1');
+      const selected = await new Promise((resolve) => {
+        execFile('powershell.exe',
+          ['-STA', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script,
+            '-Title', '选择项目文件夹', '-Initial', String(body.initial || '')],
+          { timeout: 10 * 60 * 1000, windowsHide: true },
+          (error, stdout, stderr) => {
+            if (error) console.error('[pick-dir]', String(stderr || error.message).slice(-500));
+            resolve({
+              text: String(stdout).trim(),
+              error: error ? String(stderr || error.message).slice(-500) : '',
+            });
+          });
+      });
+      return json(res, 200, { path: validDir(selected.text), error: selected.error || undefined });
     }
 
     if (method === 'GET' && pathname === '/api/dirs') {

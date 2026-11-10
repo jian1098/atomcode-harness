@@ -235,10 +235,13 @@
   // smooth-scroll each time restarts the animation and looks stuttery. Drive
   // our own eased follow instead: each frame glides a step toward the target.
   let scrollAnim = null;
+  let followPaused = false; // user scrolled away from the bottom: stop tugging
   function glideToBottom() {
     const thread = $('#thread');
+    if (followPaused) { if (scrollAnim) { cancelAnimationFrame(scrollAnim); scrollAnim = null; } return; }
     if (scrollAnim) cancelAnimationFrame(scrollAnim);
     const step = () => {
+      if (followPaused) { scrollAnim = null; return; }
       const target = thread.scrollHeight;
       const distance = target - thread.scrollTop;
       if (Math.abs(distance) < 2) { thread.scrollTop = target; scrollAnim = null; return; }
@@ -251,14 +254,24 @@
   function scrollToBottom(force = false) {
     const thread = $('#thread');
     const near = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 180;
-    if (!force && !near) return;
     if (force) {
-      // Session switch / full rerender: jump instantly, cancel any glide.
+      followPaused = false;
       if (scrollAnim) { cancelAnimationFrame(scrollAnim); scrollAnim = null; }
       thread.scrollTo({ top: thread.scrollHeight, behavior: 'auto' });
-    } else {
-      glideToBottom();
+      return;
     }
+    if (followPaused || !near) return;
+    glideToBottom();
+  }
+
+  function bindScrollGuard() {
+    const thread = $('#thread');
+    thread.addEventListener('scroll', () => {
+      if (scrollAnim) return; // our own glide: not user intent
+      const distance = thread.scrollHeight - thread.scrollTop - thread.clientHeight;
+      if (distance > 180) followPaused = true;
+      else if (distance < 60) followPaused = false;
+    });
   }
 
   function renderMessages() {
@@ -389,6 +402,9 @@
     const kind = (s?.kind === 'workspace') ? '工作区会话' : '普通会话';
     $('#convSub').textContent = `AtomCode Agent · ${kind}`;
     $('#cwdLabel').textContent = state.cwd ? basename(state.cwd) : '选择仓库';
+    const started = state.activeId && state.messages.length > 0;
+    $('#cwdBtn').classList.toggle('disabled', started);
+    $('#cwdBtn').title = started ? '会话已开始，工作目录不可更改' : '选择工作目录';
     $('#modelLabel').textContent = state.model
       ? (state.models.find((m) => m.id === state.model)?.name || state.model) : '默认模型';
     refreshBranch();
@@ -446,6 +462,11 @@
   }
 
   async function createSession(overrides = {}) {
+    // Reuse an existing empty "新对话" placeholder instead of piling up blanks.
+    // A requested cwd (workspace creation) must match, else create fresh.
+    const empty = state.sessions.find((s) => !s.messageCount && !state.runs.has(s.id)
+      && (!overrides.cwd || s.cwd === overrides.cwd));
+    if (empty) return loadSession(empty.id).then(() => { closePopover(); return empty; });
     try {
       const data = await api('/api/sessions', {
         method: 'POST',
@@ -1019,52 +1040,68 @@
       });
   }
 
-  function openDirectory() {
-    showModal('选择工作目录',
-      `<div class="form-row"><label>仓库 / 项目路径</label>
-        <input class="field" id="dirInput" value="${esc(state.cwd)}" placeholder="例如 D:\\www\\my-project" />
-        <span class="help">工作区在会话创建后不可更改：选择目录将新建一个绑定该目录的会话，文件与命令工具都作用于该目录。</span></div>
-       <div class="form-row"><label>常用目录</label><div class="dir-suggestions" id="dirSuggestions"></div></div>`,
-      `<button class="btn" data-close>取消</button><button class="btn primary" id="dirSave">使用此目录</button>`,
-      (root, foot) => {
-        const input = root.querySelector('#dirInput');
-        const list = root.querySelector('#dirSuggestions');
-        const fill = (items) => {
-          list.innerHTML = items.length ? items.map((d) => `<button data-dir="${esc(d)}">${esc(d)}</button>`).join('')
-            : '<div class="pop-empty">没有匹配的目录</div>';
-        };
-        fill([state.cwd, ...state.recentDirs].filter(Boolean));
-        list.addEventListener('click', (event) => {
-          const btn = event.target.closest('[data-dir]');
-          if (btn) input.value = btn.dataset.dir;
-        });
-        let timer;
-        input.addEventListener('input', () => {
-          clearTimeout(timer);
-          timer = setTimeout(async () => {
+  function openDirectory(prefill) {
+    const renderForm = (fillValue) => {
+      showModal('选择工作目录',
+        `<div class="form-row"><label>仓库 / 项目路径</label>
+          <div style="display:flex;gap:8px">
+            <input class="field" id="dirInput" value="${esc(fillValue !== undefined ? fillValue : state.cwd)}" placeholder="例如 D:\\www\\my-project" style="flex:1" spellcheck="false" />
+            <button class="btn" id="dirBrowse" type="button">浏览</button>
+          </div>
+          <span class="help">工作区在会话创建后不可更改：选择目录将新建一个绑定该目录的会话，文件与命令工具都作用于该目录。</span></div>
+         <div class="form-row"><label>常用目录</label><div class="dir-suggestions" id="dirSuggestions"></div></div>`,
+        `<button class="btn" data-close>取消</button><button class="btn primary" id="dirSave">使用此目录</button>`,
+        (root, foot) => {
+          const input = root.querySelector('#dirInput');
+          const list = root.querySelector('#dirSuggestions');
+          const fill = (items) => {
+            list.innerHTML = items.length ? items.map((d) => `<button data-dir="${esc(d)}">${esc(d)}</button>`).join('')
+              : '<div class="pop-empty">没有匹配的目录</div>';
+          };
+          fill([state.cwd, ...state.recentDirs].filter(Boolean));
+          list.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-dir]');
+            if (btn) input.value = btn.dataset.dir;
+          });
+          let timer;
+          input.addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(async () => {
+              try {
+                const data = await api(`/api/dirs?cwd=${encodeURIComponent(state.cwd)}&q=${encodeURIComponent(input.value.trim())}`);
+                fill(data.suggestions);
+              } catch (_) { /* ignore */ }
+            }, 250);
+          });
+          root.querySelector('#dirBrowse').addEventListener('click', async () => {
+            const btn = root.querySelector('#dirBrowse');
+            btn.disabled = true;
             try {
-              const data = await api(`/api/dirs?cwd=${encodeURIComponent(state.cwd)}&q=${encodeURIComponent(input.value.trim())}`);
-              fill(data.suggestions);
-            } catch (_) { /* ignore */ }
-          }, 250);
+              const data = await api('/api/pick-dir', { method: 'POST', body: { initial: input.value.trim() } });
+              if (data.path) input.value = data.path;
+              else if (data.error) toast(`选择文件夹失败：${data.error.split('\n').pop().slice(0, 120)}`, true);
+            } catch (error) { toast(error.message, true); }
+            btn.disabled = false;
+          });
+          foot.querySelector('[data-close]').addEventListener('click', closeModal);
+          foot.querySelector('#dirSave').addEventListener('click', async () => {
+            const value = input.value.trim();
+            if (!value) return;
+            try {
+              const data = await api(`/api/dirs?q=${encodeURIComponent(value)}`);
+              const hit = data.suggestions.find((d) => d.toLowerCase() === value.toLowerCase());
+              if (!hit) { toast('目录不存在，请检查路径', true); return; }
+              state.cwd = hit;
+              savePrefs();
+              // Workspace is fixed at session creation: picking a directory opens a new session in it.
+              closeModal();
+              await createSession({ cwd: hit });
+              toast(`已在新工作区新建会话：${hit}`);
+            } catch (error) { toast(error.message, true); }
+          });
         });
-        foot.querySelector('[data-close]').addEventListener('click', closeModal);
-        foot.querySelector('#dirSave').addEventListener('click', async () => {
-          const value = input.value.trim();
-          if (!value) return;
-          try {
-            const data = await api(`/api/dirs?q=${encodeURIComponent(value)}`);
-            const hit = data.suggestions.find((d) => d.toLowerCase() === value.toLowerCase());
-            if (!hit) { toast('目录不存在，请检查路径', true); return; }
-            state.cwd = hit;
-            savePrefs();
-            // Workspace is fixed at session creation: picking a directory opens a new session in it.
-            closeModal();
-            await createSession({ cwd: hit });
-            toast(`已在新工作区新建会话：${hit}`);
-          } catch (error) { toast(error.message, true); }
-        });
-      });
+    };
+    renderForm(prefill);
   }
 
   /* ---------------- misc UI ---------------- */
@@ -1137,7 +1174,14 @@
     $('#searchInput').addEventListener('input', renderSessions);
     $$('.group-head').forEach((btn) => btn.addEventListener('click', () => btn.parentElement.classList.toggle('collapsed')));
     $('#modelBtn').addEventListener('click', (event) => { event.stopPropagation(); modelPopover(); });
-    $('#cwdBtn').addEventListener('click', (event) => { event.stopPropagation(); openDirectory(); });
+    $('#cwdBtn').addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (state.activeId && state.messages.length > 0) {
+        toast('会话已开始，工作目录不可更改；请通过「选择仓库」新建会话', true);
+        return;
+      }
+      openDirectory();
+    });
     $('#plusBtn').addEventListener('click', (event) => { event.stopPropagation(); plusPopover(); });
     $('#resetBtn').addEventListener('click', (event) => { event.stopPropagation(); infoPopover(); });
     $('#sideSettingsBtn').addEventListener('click', openSettings);
@@ -1222,6 +1266,7 @@
     });
     applyTheme();
     bindEvents();
+    bindScrollGuard();
     autoHeight($('#input'));
 
     try {

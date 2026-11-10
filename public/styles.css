@@ -361,6 +361,8 @@ details[open] .caret { transform: rotate(90deg); }
   border: 1px solid var(--border); border-radius: 6px; color: var(--text-2); font-size: 13.5px; max-width: 180px;
 }
 .tool-btn:hover { background: var(--hover); }
+.tool-btn.disabled { opacity: .45; cursor: not-allowed; }
+.tool-btn.disabled:hover { background: transparent; }
 .tool-btn svg { width: 14px; height: 14px; }
 .tool-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .model-btn { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: 13.5px; padding: 4px 5px; border-radius: 5px; max-width: 190px; }
